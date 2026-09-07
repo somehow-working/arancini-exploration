@@ -1,5 +1,15 @@
 # CMake
 !CMakeLists.txt
+*CMakeFiles*
+Makefile
+cmake_install.cmake
+
+CMakeCache.txt
+CPackConfig.cmake
+CPackSourceConfig.cmake
+_deps/*
+xed-prefix/*
+
 
 # Other
 **/*.o
@@ -33,3 +43,5 @@ phoenix-*
 parsec-*
 
 guest-sections.lds
+
+
