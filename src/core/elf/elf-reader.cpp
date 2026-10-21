@@ -15,63 +15,6 @@
 
 using namespace arancini::elf;
 
-struct unmanaged_file {
-    unmanaged_file(const unmanaged_file &) = delete;
-    unmanaged_file(unmanaged_file &&) = delete;
-    unmanaged_file &operator=(unmanaged_file) = delete;
-
-    unmanaged_file(const std::string &filename)
-        : fd_(-1), size_(0), has_size_(false) {
-        fd_ = open(filename.c_str(), O_RDONLY);
-
-        if (fd_ < 0) {
-            throw std::runtime_error("unable to open file for reading '" +
-                                     filename + "'");
-        }
-    }
-
-    ~unmanaged_file() { close(fd_); }
-
-    off_t size() const {
-        if (!has_size_) {
-            struct stat64 st;
-            if (fstat64(fd_, &st) < 0) {
-                throw std::runtime_error("unable to stat file");
-            }
-
-            size_ = st.st_size;
-            has_size_ = true;
-        }
-
-        return size_;
-    }
-
-    void *map() {
-        void *ptr = mmap(nullptr, size(), PROT_READ, MAP_PRIVATE, fd_, 0);
-
-        if (ptr == MAP_FAILED) {
-            throw std::runtime_error("unable to map file");
-        }
-
-        return ptr;
-    }
-
-  private:
-    int fd_;
-    mutable off_t size_;
-    mutable bool has_size_;
-};
-
-elf_reader::elf_reader(const std::string &filename)
-    : elf_data_(nullptr), elf_data_size_(0), entrypoint_(0) {
-    unmanaged_file f(filename);
-
-    elf_data_size_ = f.size();
-    elf_data_ = f.map();
-}
-
-elf_reader::~elf_reader() { munmap(elf_data_, elf_data_size_); }
-
 void elf_reader::parse() {
     uint32_t magic = read32(0);
     if (magic != 0x464c457f) {

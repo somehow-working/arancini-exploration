@@ -36,6 +36,8 @@ namespace arancini::txlat {
 class txlat_engine {
   public:
     void translate(const boost::program_options::variables_map &cmdline);
+    void translate_elf(const boost::program_options::variables_map &cmdline);
+    void translate_pe(const boost::program_options::variables_map &cmdline);
 
   private:
     void process_options(arancini::output::o_static::static_output_engine &oe,

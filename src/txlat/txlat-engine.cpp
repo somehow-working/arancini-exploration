@@ -1,4 +1,6 @@
 #include <arancini/elf/elf-reader.h>
+#include <arancini/elf/pe-reader.h>
+#include <arancini/elf/reader.h>
 #include <arancini/input/x86/x86-input-arch.h>
 #include <arancini/ir/chunk.h>
 #include <arancini/ir/default-ir-builder.h>
@@ -21,7 +23,7 @@
 #include <string>
 
 using namespace arancini::txlat;
-using namespace arancini::elf;
+using namespace arancini;
 using namespace arancini::ir;
 using namespace arancini::input;
 using namespace arancini::input::x86;
@@ -44,6 +46,7 @@ static std::set<std::string> allowed_symbols = {"cmpstr",
 
 // Determine host architecture (with help from the build system)
 // Needed to select the appropriate linker script
+//#define DBT_ARCH_STR_LOWER "hello"
 #ifdef DBT_ARCH_STR_LOWER
 static std::string_view architecture{DBT_ARCH_STR_LOWER};
 #else
@@ -66,9 +69,59 @@ void txlat_engine::process_options(
 }
 
 static void run_or_fail(const std::string &cmd) {
-    util::global_logger.info("Running: {}...\n", cmd);
+    ::util::global_logger.info("Running: {}...\n", cmd);
     if (std::system(cmd.c_str()) != 0) {
         throw std::runtime_error("error whilst running subcommand");
+    }
+}
+
+void txlat_engine::translate_pe(
+    const boost::program_options::variables_map &cmdline) {
+
+    tempfile_manager tf;
+
+    // Parse the input PE file
+    const auto &filename = cmdline.at("input").as<std::string>();
+    pe::pe_reader pe_file(filename);
+    pe_file.parse();
+
+    // TODO: Figure the input engine out from ELF architecture header
+    auto das = cmdline.at("syntax").as<std::string>() == "att"
+                   ? disassembly_syntax::att
+                   : disassembly_syntax::intel;
+    auto ia = std::make_unique<arancini::input::x86::x86_input_arch>(
+        cmdline.count("debug") || cmdline.count("graph"), das);
+
+    std::string prefix = "";
+    if (cmdline.find("keep-objs") != cmdline.end()) {
+        prefix = cmdline.at("keep-objs").as<std::string>();
+    }
+    // Construct the output engine
+    auto intermediate_file = tf.create_file(prefix, ".o");
+    //always exec as PE type (maybe later also DLLs)
+    auto oe = std::make_shared<
+        arancini::output::o_static::llvm::llvm_static_output_engine>(
+        intermediate_file->name(), true);
+    process_options(*oe, cmdline);
+
+    oe->set_entrypoint(pe_file.get_entrypoint());
+}
+
+void txlat_engine::translate(
+    const boost::program_options::variables_map &cmdline) {
+        
+    const auto &filename = cmdline.at("input").as<std::string>();
+    auto bin_type = bin_reader::get_bin_type(filename);
+
+    if(bin_type == bin_file_type::unk) {
+        //did not recognize file type so abort
+        throw std::runtime_error("Did not recognize the type of the binary file");
+    }
+
+    if(bin_type == bin_file_type::elf) {
+        translate_elf(cmdline);
+    }   else {
+        translate_pe(cmdline);
     }
 }
 
@@ -79,7 +132,7 @@ static void run_or_fail(const std::string &cmd) {
   For example, the output engine can generate the target binary or a
   visualisation of the Arancini IR.
 */
-void txlat_engine::translate(
+void txlat_engine::translate_elf(
     const boost::program_options::variables_map &cmdline) {
     // Create a manager for temporary files, as we'll be creating a series of
     // them.  When this object is destroyed, all temporary files are
@@ -104,7 +157,7 @@ void txlat_engine::translate(
 
     // Parse the input ELF file
     const auto &filename = cmdline.at("input").as<std::string>();
-    elf_reader elf(filename);
+    elf::elf_reader elf(filename);
     elf.parse();
     bool is_exec = elf.type() == elf::elf_type::exec;
 
@@ -128,24 +181,24 @@ void txlat_engine::translate(
 
     oe->set_entrypoint(elf.get_entrypoint());
 
-    std::shared_ptr<symbol_table> dyn_sym;
-    std::shared_ptr<symbol_table> sym_t;
-    std::shared_ptr<plt_table> plt_tab;
-    std::vector<std::shared_ptr<rela_table>> relocations;
-    std::vector<std::shared_ptr<relr_array>> relocations_r;
-    std::set<symbol> unique_translated;
+    std::shared_ptr<elf::symbol_table> dyn_sym;
+    std::shared_ptr<elf::symbol_table> sym_t;
+    std::shared_ptr<elf::plt_table> plt_tab;
+    std::vector<std::shared_ptr<elf::rela_table>> relocations;
+    std::vector<std::shared_ptr<elf::relr_array>> relocations_r;
+    std::set<elf::symbol> unique_translated;
     // pairs of symbols and maximum size (aka. until the end of the section)
-    std::vector<std::pair<symbol, size_t>> zero_size;
+    std::vector<std::pair<elf::symbol, size_t>> zero_size;
 
     // Loop over each symbol table, and translate the symbol.
     for (auto &s : elf.sections()) {
         if (s->type() == elf::section_type::progbits) {
             if (s->name() == ".plt") {
-                auto st = std::static_pointer_cast<plt_table>(s);
+                auto st = std::static_pointer_cast<elf::plt_table>(s);
                 plt_tab = std::move(st);
             }
         } else if (s->type() == elf::section_type::dynamic_symbol_table) {
-            auto st = std::static_pointer_cast<symbol_table>(s);
+            auto st = std::static_pointer_cast<elf::symbol_table>(s);
             dyn_sym = std::move(st);
 #ifdef NLIB
             for (const auto &sym : dyn_sym->symbols()) {
@@ -165,13 +218,13 @@ void txlat_engine::translate(
             }
 #endif
         } else if (s->type() == elf::section_type::relocation_addend) {
-            auto st = std::static_pointer_cast<rela_table>(s);
+            auto st = std::static_pointer_cast<elf::rela_table>(s);
             relocations.push_back(std::move(st));
         } else if (s->type() == elf::section_type::relr) {
-            auto st = std::static_pointer_cast<relr_array>(s);
+            auto st = std::static_pointer_cast<elf::relr_array>(s);
             relocations_r.push_back(std::move(st));
-        } else if (s->type() == section_type::symbol_table) {
-            auto st = std::static_pointer_cast<symbol_table>(s);
+        } else if (s->type() == elf::section_type::symbol_table) {
+            auto st = std::static_pointer_cast<elf::symbol_table>(s);
             if (!cmdline.count("no-static")) {
                 auto syms = st->symbols();
                 for (auto sym = syms.cbegin(); sym != syms.cend(); sym++) {
@@ -212,7 +265,7 @@ void txlat_engine::translate(
             if (next->value() - p.first.value() < size)
                 size = next->value() - p.first.value();
         }
-        auto fixed_sym = symbol(p.first.name(), p.first.value(), size,
+        auto fixed_sym = elf::symbol(p.first.name(), p.first.value(), size,
                                 p.first.section_index(), p.first.info(), 0);
 
         oe->add_chunk(translate_symbol(*ia, elf, fixed_sym));
@@ -294,7 +347,7 @@ void txlat_engine::translate(
         cmdline.count("verbose-link") ? " -Wl,--verbose" : "";
 
     if (cmdline.count("no-script")) {
-        if (elf.type() == elf_type::exec) {
+        if (elf.type() == elf::elf_type::exec) {
             run_or_fail(cxx_compiler + " -o " +
                         cmdline.at("output").as<std::string>() +
                         " -no-pie -latomic " + intermediate_file->name() +
@@ -312,16 +365,16 @@ void txlat_engine::translate(
     }
 
     // Generate loadable sections
-    std::vector<std::shared_ptr<program_header>> load_phdrs;
-    std::vector<std::shared_ptr<program_header>> tls;
+    std::vector<std::shared_ptr<elf::program_header>> load_phdrs;
+    std::vector<std::shared_ptr<elf::program_header>> tls;
 
     // For each program header, determine whether or not it's loadable, and
     // generate a corresponding temporary file containing the binary contents of
     // the segment.
     for (const auto &p : elf.program_headers()) {
-        if (p->type() == program_header_type::loadable) {
+        if (p->type() == elf::program_header_type::loadable) {
             load_phdrs.push_back(p);
-        } else if (p->type() == program_header_type::tls) {
+        } else if (p->type() == elf::program_header_type::tls) {
             tls.push_back(p);
         }
     }
@@ -428,26 +481,26 @@ void txlat_engine::translate(
 
     // Patch relocations in result binary
     const auto &output = cmdline.at("output").as<std::string>();
-    elf_reader elf1 = {output};
+    elf::elf_reader elf1 = {output};
 
     elf1.parse();
 
-    std::shared_ptr<symbol_table> generated_dynsym;
-    std::vector<std::shared_ptr<rela_table>> generated_rela;
+    std::shared_ptr<elf::symbol_table> generated_dynsym;
+    std::vector<std::shared_ptr<elf::rela_table>> generated_rela;
 
     for (auto &s : elf1.sections()) {
         if (s->type() == elf::section_type::dynamic_symbol_table) {
-            auto st = std::static_pointer_cast<symbol_table>(s);
+            auto st = std::static_pointer_cast<elf::symbol_table>(s);
             generated_dynsym = std::move(st);
         } else if (s->type() == elf::section_type::relocation_addend) {
-            auto st = std::static_pointer_cast<rela_table>(s);
+            auto st = std::static_pointer_cast<elf::rela_table>(s);
             generated_rela.push_back(std::move(st));
         }
     }
 
     std::map<std::string, int> guest_symbol_to_index;
 
-    const std::vector<symbol> &guest_symbols = generated_dynsym->symbols();
+    const std::vector<elf::symbol> &guest_symbols = generated_dynsym->symbols();
     for (size_t i = 0; i < guest_symbols.size(); ++i) {
         const std::string &string = guest_symbols[i].name();
         if (string.size() >= 9) {
@@ -460,7 +513,7 @@ void txlat_engine::translate(
                            std::ios::out | std::ios::binary | std::ios::in);
 
         for (const auto &relocs : generated_rela) {
-            const std::vector<rela> &relocations1 = relocs->relocations();
+            const std::vector<elf::rela> &relocations1 = relocs->relocations();
             for (size_t i = 0; i < relocations1.size(); ++i) {
                 const auto &reloc = relocations1[i];
                 unsigned int transform = reloc.type() & 0xf0000000;
@@ -510,14 +563,14 @@ void txlat_engine::translate(
 }
 
 void txlat_engine::add_symbol_to_output(
-    const std::vector<std::shared_ptr<program_header>> &phbins,
-    const std::map<off_t, unsigned int> &end_addresses, const symbol &sym,
+    const std::vector<std::shared_ptr<elf::program_header>> &phbins,
+    const std::map<off_t, unsigned int> &end_addresses, const elf::symbol &sym,
     std::ofstream &s, std::map<uint64_t, std::string> &ifuncs,
     bool force_global, bool omit_prefix) {
     auto type = sym.type();
 
     unsigned int i = end_addresses.upper_bound(sym.value())->second;
-    const std::shared_ptr<program_header> &phdr = phbins[i / 2];
+    const std::shared_ptr<elf::program_header> &phdr = phbins[i / 2];
 
     auto name = omit_prefix ? sym.name() : "__guest__" + sym.name();
     if (strcmp(type, "STT_GNU_IFUNC") == 0) {
@@ -616,7 +669,7 @@ txlat_engine::generate_wrapper(arancini::input::input_arch &ia,
 */
 std::shared_ptr<chunk>
 txlat_engine::translate_symbol(arancini::input::input_arch &ia,
-                               elf_reader &reader, const symbol &sym) {
+                               elf::elf_reader &reader, const elf::symbol &sym) {
     ::util::global_logger.info(
         "Translating symbol {}; value={:x} size={} section={}\n", sym.name(),
         sym.value(), sym.size(), sym.section_index());
@@ -688,10 +741,10 @@ std::map<uint64_t, std::string> txlat_engine::generate_guest_sections(
     const std::shared_ptr<util::basefile> &phobjsrc, elf::elf_reader &elf,
     const std::vector<std::shared_ptr<elf::program_header>> &load_phdrs,
     const std::basic_string<char> &filename,
-    const std::shared_ptr<symbol_table> &dyn_sym,
+    const std::shared_ptr<elf::symbol_table> &dyn_sym,
     const std::vector<std::shared_ptr<elf::rela_table>> &relocations,
     const std::vector<std::shared_ptr<elf::relr_array>> &relocations_r,
-    const std::shared_ptr<symbol_table> &sym_t,
+    const std::shared_ptr<elf::symbol_table> &sym_t,
     const std::vector<std::shared_ptr<elf::program_header>> &tls) {
     std::map<uint64_t, std::string> ifuncs;
     std::map<off_t, unsigned int> end_addresses;
@@ -798,7 +851,7 @@ std::map<uint64_t, std::string> txlat_engine::generate_guest_sections(
                                  true);
             s << ".hidden __guest___DYNAMIC\n";
             if (elf.type() == elf::elf_type::exec) {
-                symbol sy{"guest_exec_DYNAMIC", sym.value(), sym.size(),
+                elf::symbol sy{"guest_exec_DYNAMIC", sym.value(), sym.size(),
                           sym.section_index(),  sym.info(),  0};
                 add_symbol_to_output(load_phdrs, end_addresses, sy, s, ifuncs,
                                      true, true);
@@ -819,7 +872,7 @@ std::map<uint64_t, std::string> txlat_engine::generate_guest_sections(
     for (const auto &relocs : relocations_r) {
         for (const auto &reloc : relocs->relocations()) {
             unsigned int i = end_addresses.upper_bound(reloc)->second;
-            const std::shared_ptr<program_header> &phdr = load_phdrs[i / 2];
+            const std::shared_ptr<elf::program_header> &phdr = load_phdrs[i / 2];
 
             // Reading this here because now the file_offset can be calculated
             // from the encompassing phdr
@@ -851,7 +904,7 @@ std::map<uint64_t, std::string> txlat_engine::generate_guest_sections(
                 // so we can only perform those manually in library init. Add an
                 // array of offset, addend pairs to iterate over.
 
-                if (elf.type() == elf_type::exec) {
+                if (elf.type() == elf::elf_type::exec) {
                     throw std::runtime_error(
                         "TP relative reloc in binary not supported.");
                 }
@@ -865,7 +918,7 @@ std::map<uint64_t, std::string> txlat_engine::generate_guest_sections(
                   << ".section .grela\n";
             } else if (reloc.is_dtpmod()) {
 
-                if (elf.type() == elf_type::exec) {
+                if (elf.type() == elf::elf_type::exec) {
                     throw std::runtime_error(
                         "DTPMOD reloc in binary not supported.");
                 }
@@ -908,7 +961,7 @@ std::map<uint64_t, std::string> txlat_engine::generate_guest_sections(
          "__DTPMOD_INIT, . - __DTPMOD_INIT \n.hidden __DTPMOD_INIT\n"
       << ".ifndef guest_tls\n.set guest_tls, 0\n.endif\n.globl "
          "guest_tls\n.hidden guest_tls\n";
-    if (elf.type() == elf_type::exec) {
+    if (elf.type() == elf::elf_type::exec) {
         s << ".ifndef tls_offset\ntls_offset:\n.quad 0\n.globl "
              "tls_offset\n.endif\n";
     }

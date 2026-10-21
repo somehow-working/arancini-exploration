@@ -225,7 +225,7 @@ class logger_impl
     void print(FILE *dest, std::tuple<Args...> &&printer_args) {
         std::apply(
             [dest](auto &&format, auto &&...args) {
-                fmt::print(dest, std::forward<decltype(format)>(format),
+                fmt::print(dest, fmt::runtime(std::forward<decltype(format)>(format)),
                            std::forward<decltype(args)>(args)...);
             },
             printer_args);
