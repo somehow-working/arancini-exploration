@@ -76,7 +76,7 @@ class bin_reader {
 
     virtual void parse() =0;
 
-    off_t get_entrypoint() const { return entrypoint_; }
+    virtual off_t get_entrypoint() const { return entrypoint_; }
 
     static bin_file_type get_bin_type(const std::string& filename) {
         std::ifstream file(filename, std::ios_base::in | std::ios_base::binary);

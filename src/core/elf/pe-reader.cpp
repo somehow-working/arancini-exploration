@@ -553,6 +553,7 @@ void pe_reader::parse_idata_section(uint32_t rva) {
 
         //uint32_t import_lookup_tbl_ptr = get_offset_by_section_name(".idata", import_dir_entry.OriginalFirstThunk);
         uint32_t import_lookup_tbl_ptr = get_file_offset(import_dir_entry.OriginalFirstThunk);
+        uint32_t import_address_tbl_rva = import_dir_entry.FirstThunk;
         while(true) {
             uint64_t import_lookup_tbl = read64(import_lookup_tbl_ptr);
             //last entry is 0 (indicates end of table)
@@ -563,7 +564,7 @@ void pe_reader::parse_idata_section(uint32_t rva) {
             if(import_lookup_tbl >> 63) {
                 //import by ordinal
                 uint16_t ordinal = import_lookup_tbl & 0xffff;
-                current_dll.imported_symbols.push_back(ordinal);
+                current_dll.imported_symbols.push_back(std::make_pair(import_address_tbl_rva, ordinal));
             }   else {
                 uint32_t name_ptr_rva = import_lookup_tbl & 0xffffffff;
                 //uint32_t name_ptr = get_offset_by_section_name(".idata", name_ptr_rva);
@@ -571,9 +572,10 @@ void pe_reader::parse_idata_section(uint32_t rva) {
                 //import by name
                 uint16_t hint = read16(name_ptr);
                 std::string import_name = readstr(name_ptr + sizeof(uint16_t));
-                current_dll.imported_symbols.push_back(import_name);
+                current_dll.imported_symbols.push_back(std::make_pair(import_address_tbl_rva, import_name));
             }
 
+            import_address_tbl_rva += sizeof(uint64_t);
             import_lookup_tbl_ptr += sizeof(uint64_t);
         }
 

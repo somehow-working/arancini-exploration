@@ -21,6 +21,7 @@
 #include <optional>
 #include <ostream>
 #include <string>
+#include <variant>
 
 using namespace arancini::txlat;
 //using namespace arancini::elf;
@@ -105,6 +106,28 @@ void txlat_engine::translate_pe(
     process_options(*oe, cmdline);
 
     oe->set_entrypoint(pe_file.get_entrypoint());
+    oe->set_compile_for_linux(false);
+    //std::cout << "start of set1 we have: " << oe->is_compile_for_linux() << std::endl;
+
+    auto import_dirs = pe_file.get_import_directories();
+    if(import_dirs.has_value()) {
+        for(const auto i_dll : import_dirs.value()) {
+            //need to save name of DLL somewhere so that we can link against it later
+            std::cout << "Treating symbol from DLL: " << i_dll.name << std::endl;
+            for(const auto& rva_sym_pair : i_dll.imported_symbols) {
+                if(const std::string* s = std::get_if<std::string>(&rva_sym_pair.second)) {
+                    oe->add_function_decl(rva_sym_pair.first, *s);
+                }   else {
+                    throw std::runtime_error("Ordinal import not yet supported!");
+                }
+            }
+        }
+    }
+    //std::cout << "start of set1 we have: " << oe->is_compile_for_linux() << std::endl;
+
+    oe->generate();
+
+    //std::cout << "end of set1 we have: " << oe->is_compile_for_linux() << std::endl;
 }
 
 void txlat_engine::translate(

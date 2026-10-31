@@ -9,6 +9,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "-Wall -std=c++17 -Wno-unused-function")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
 
+find_program(CCACHE_PROGRAM ccache)
+set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+
 add_compile_options(-fdiagnostics-color=always)
 
 # Generate the compile commands for development

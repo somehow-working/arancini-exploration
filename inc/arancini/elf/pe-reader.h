@@ -258,7 +258,7 @@ struct export_names_ordinals {
 struct imported_dll {
     std::string name;
     uint32_t forwarder_chain;   //no idea what this does
-    std::vector<std::variant<uint16_t, std::string>> imported_symbols{};
+    std::vector<std::pair<uint32_t, std::variant<uint16_t, std::string>>> imported_symbols{};
 };
 
 struct x86_func_tbl_entry {
@@ -296,7 +296,7 @@ struct delay_load_dir_table {
 class pe_reader : public bin_reader {
     public:
         pe_reader(const std::string &filename);
-        ~pe_reader() {};
+        //~pe_reader() {};
 
         void parse();
 

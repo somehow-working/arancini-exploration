@@ -24,6 +24,16 @@ class llvm_static_output_engine : public static_output_engine {
     }
     void set_codegen_fence(bool b) { fences_ = b; }
 
+    void set_compile_for_linux(bool b) {
+      //std::cout << "set flag to " << b << std::endl;
+      compile_for_linux_ = b; 
+    }
+
+    bool is_compile_for_linux() const {
+      //std::cout << "Looking at obj at: " << this << std::endl;
+      return compile_for_linux_; 
+    };
+
     bool is_exec() const { return is_exec_; };
 
   private:
@@ -32,5 +42,6 @@ class llvm_static_output_engine : public static_output_engine {
     const bool is_exec_;
     std::optional<std::string> debug_dump_filename;
     bool fences_{true};
+    bool compile_for_linux_{true};
 };
 } // namespace arancini::output::o_static::llvm

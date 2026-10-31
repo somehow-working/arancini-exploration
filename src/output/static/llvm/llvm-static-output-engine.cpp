@@ -57,6 +57,7 @@ using namespace ::llvm;
 using arancini::input::x86::off_to_idx;
 using arancini::input::x86::regnames;
 
+
 llvm_static_output_engine::llvm_static_output_engine(
     const std::string &output_filename, const bool is_exec)
     : static_output_engine(output_filename),
@@ -66,7 +67,10 @@ llvm_static_output_engine::llvm_static_output_engine(
 
 llvm_static_output_engine::~llvm_static_output_engine() = default;
 
-void llvm_static_output_engine::generate() { oei_->generate(); }
+void llvm_static_output_engine::generate() {
+    //std::cout << "start of generate we have: " << is_compile_for_linux() << std::endl;
+    oei_->generate(); 
+}
 
 llvm_static_output_engine_impl::llvm_static_output_engine_impl(
     const llvm_static_output_engine &e,
@@ -83,6 +87,8 @@ void llvm_static_output_engine_impl::generate() {
     InitializeAllTargetMCs();
     InitializeAllAsmParsers();
     InitializeAllAsmPrinters();
+
+    //std::cout << "start of 2 we have: " << e_.is_compile_for_linux() << std::endl;
 
     build();
     optimise();
@@ -216,6 +222,9 @@ void llvm_static_output_engine_impl::create_function_decls() {
     for (auto n : extern_fns_) {
         auto fn = static_cast<Function *>(
             module_->getOrInsertFunction(n.second, get_fn_type()).getCallee());
+        if(!e_.is_compile_for_linux()) {
+            fn->setDLLStorageClass(GlobalValue::DLLImportStorageClass); //only for windows
+        }
         (*fns_)[n.first] = fn;
     }
 }
@@ -507,7 +516,12 @@ void llvm_static_output_engine_impl::createStoreToCPU(IRBuilder<> &builder,
                            ConstantInt::get(types.i32, reg_idx)}));
 }
 
+void test_arg_vis() {
+    auto arg = llvm_arg_visitor();
+}
+
 void llvm_static_output_engine_impl::lower_chunks(Function *main_loop) {
+    test_arg_vis();
     IRBuilder<> builder(*llvm_context_);
 
     auto ret = llvm_ret_visitor();
@@ -2735,16 +2749,21 @@ void llvm_static_output_engine_impl::optimise() {
 
 void llvm_static_output_engine_impl::compile() {
     std::cout << "Fixed branches: " << fixed_branches << std::endl;
+    std::string TT;
+    if(e_.is_compile_for_linux()) {
 #ifndef CROSS_TRANSLATE
-    auto TT = sys::getDefaultTargetTriple();
+        TT = sys::getDefaultTargetTriple();
 #elif defined(ARCH_RISCV64)
-    auto TT = "riscv64-unknown-linux-gnu";
+        TT = "riscv64-unknown-linux-gnu";
 #elif defined(ARCH_AARCH64)
-    auto TT = "aarch64-unknown-linux-gnu";
+        TT = "aarch64-unknown-linux-gnu";
 #elif defined(ARCH_X86_64)
-    auto TT = "x86_64-unknown-linux-gnu";
+        TT = "x86_64-unknown-linux-gnu";
 #error Please check if the triple above is correct
 #endif
+    }   else {
+        TT = "aarch64-pc-windows-mingw32";
+    }
     module_->setTargetTriple(TT);
 
     std::string error_message;
@@ -2786,6 +2805,7 @@ void llvm_static_output_engine_impl::compile() {
                                  EC.message());
     }
 
+    std::cout << "Generated object file: " << e_.output_filename() << " with target triple: " << TT << std::endl;
     legacy::PassManager OPM;
     if (TM->addPassesToEmitFile(OPM, output_file, nullptr,
                                 ::llvm::CodeGenFileType::ObjectFile)) {
