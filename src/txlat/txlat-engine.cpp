@@ -23,7 +23,7 @@
 #include <string>
 
 using namespace arancini::txlat;
-using namespace arancini;
+//using namespace arancini::elf;
 using namespace arancini::ir;
 using namespace arancini::input;
 using namespace arancini::input::x86;
@@ -157,9 +157,9 @@ void txlat_engine::translate_elf(
 
     // Parse the input ELF file
     const auto &filename = cmdline.at("input").as<std::string>();
-    elf::elf_reader elf(filename);
+    arancini::elf::elf_reader elf(filename);
     elf.parse();
-    bool is_exec = elf.type() == elf::elf_type::exec;
+    bool is_exec = elf.type() == arancini::elf::elf_type::exec;
 
     // TODO: Figure the input engine out from ELF architecture header
     auto das = cmdline.at("syntax").as<std::string>() == "att"
@@ -181,24 +181,24 @@ void txlat_engine::translate_elf(
 
     oe->set_entrypoint(elf.get_entrypoint());
 
-    std::shared_ptr<elf::symbol_table> dyn_sym;
-    std::shared_ptr<elf::symbol_table> sym_t;
-    std::shared_ptr<elf::plt_table> plt_tab;
-    std::vector<std::shared_ptr<elf::rela_table>> relocations;
-    std::vector<std::shared_ptr<elf::relr_array>> relocations_r;
-    std::set<elf::symbol> unique_translated;
+    std::shared_ptr<arancini::elf::symbol_table> dyn_sym;
+    std::shared_ptr<arancini::elf::symbol_table> sym_t;
+    std::shared_ptr<arancini::elf::plt_table> plt_tab;
+    std::vector<std::shared_ptr<arancini::elf::rela_table>> relocations;
+    std::vector<std::shared_ptr<arancini::elf::relr_array>> relocations_r;
+    std::set<arancini::elf::symbol> unique_translated;
     // pairs of symbols and maximum size (aka. until the end of the section)
-    std::vector<std::pair<elf::symbol, size_t>> zero_size;
+    std::vector<std::pair<arancini::elf::symbol, size_t>> zero_size;
 
     // Loop over each symbol table, and translate the symbol.
     for (auto &s : elf.sections()) {
-        if (s->type() == elf::section_type::progbits) {
+        if (s->type() == arancini::elf::section_type::progbits) {
             if (s->name() == ".plt") {
-                auto st = std::static_pointer_cast<elf::plt_table>(s);
+                auto st = std::static_pointer_cast<arancini::elf::plt_table>(s);
                 plt_tab = std::move(st);
             }
-        } else if (s->type() == elf::section_type::dynamic_symbol_table) {
-            auto st = std::static_pointer_cast<elf::symbol_table>(s);
+        } else if (s->type() == arancini::elf::section_type::dynamic_symbol_table) {
+            auto st = std::static_pointer_cast<arancini::elf::symbol_table>(s);
             dyn_sym = std::move(st);
 #ifdef NLIB
             for (const auto &sym : dyn_sym->symbols()) {
@@ -217,14 +217,14 @@ void txlat_engine::translate_elf(
                 }
             }
 #endif
-        } else if (s->type() == elf::section_type::relocation_addend) {
-            auto st = std::static_pointer_cast<elf::rela_table>(s);
+        } else if (s->type() == arancini::elf::section_type::relocation_addend) {
+            auto st = std::static_pointer_cast<arancini::elf::rela_table>(s);
             relocations.push_back(std::move(st));
-        } else if (s->type() == elf::section_type::relr) {
-            auto st = std::static_pointer_cast<elf::relr_array>(s);
+        } else if (s->type() == arancini::elf::section_type::relr) {
+            auto st = std::static_pointer_cast<arancini::elf::relr_array>(s);
             relocations_r.push_back(std::move(st));
-        } else if (s->type() == elf::section_type::symbol_table) {
-            auto st = std::static_pointer_cast<elf::symbol_table>(s);
+        } else if (s->type() == arancini::elf::section_type::symbol_table) {
+            auto st = std::static_pointer_cast<arancini::elf::symbol_table>(s);
             if (!cmdline.count("no-static")) {
                 auto syms = st->symbols();
                 for (auto sym = syms.cbegin(); sym != syms.cend(); sym++) {
@@ -265,7 +265,7 @@ void txlat_engine::translate_elf(
             if (next->value() - p.first.value() < size)
                 size = next->value() - p.first.value();
         }
-        auto fixed_sym = elf::symbol(p.first.name(), p.first.value(), size,
+        auto fixed_sym = arancini::elf::symbol(p.first.name(), p.first.value(), size,
                                 p.first.section_index(), p.first.info(), 0);
 
         oe->add_chunk(translate_symbol(*ia, elf, fixed_sym));
@@ -347,14 +347,14 @@ void txlat_engine::translate_elf(
         cmdline.count("verbose-link") ? " -Wl,--verbose" : "";
 
     if (cmdline.count("no-script")) {
-        if (elf.type() == elf::elf_type::exec) {
+        if (elf.type() == arancini::elf::elf_type::exec) {
             run_or_fail(cxx_compiler + " -o " +
                         cmdline.at("output").as<std::string>() +
                         " -no-pie -latomic " + intermediate_file->name() +
                         " -l arancini-runtime -L " + arancini_runtime_lib_dir +
                         " -Wl,-rpath=" + arancini_runtime_lib_dir + debug_info +
                         verbose_link);
-        } else if (elf.type() == elf::elf_type::dyn) {
+        } else if (elf.type() == arancini::elf::elf_type::dyn) {
             run_or_fail(
                 cxx_compiler + " -o " + cmdline.at("output").as<std::string>() +
                 " -shared " + intermediate_file->name() + " -L " +
@@ -365,16 +365,16 @@ void txlat_engine::translate_elf(
     }
 
     // Generate loadable sections
-    std::vector<std::shared_ptr<elf::program_header>> load_phdrs;
-    std::vector<std::shared_ptr<elf::program_header>> tls;
+    std::vector<std::shared_ptr<arancini::elf::program_header>> load_phdrs;
+    std::vector<std::shared_ptr<arancini::elf::program_header>> tls;
 
     // For each program header, determine whether or not it's loadable, and
     // generate a corresponding temporary file containing the binary contents of
     // the segment.
     for (const auto &p : elf.program_headers()) {
-        if (p->type() == elf::program_header_type::loadable) {
+        if (p->type() == arancini::elf::program_header_type::loadable) {
             load_phdrs.push_back(p);
-        } else if (p->type() == elf::program_header_type::tls) {
+        } else if (p->type() == arancini::elf::program_header_type::tls) {
             tls.push_back(p);
         }
     }
@@ -426,7 +426,7 @@ void txlat_engine::translate_elf(
             libs += stringstream.str();
         }
 
-        if (elf.type() == elf::elf_type::exec) {
+        if (elf.type() == arancini::elf::elf_type::exec) {
             // Generate the final output binary by compiling everything
             // together.
             run_or_fail(fmt::format(
@@ -436,7 +436,7 @@ void txlat_engine::translate_elf(
                 intermediate_file->name(), libs, phobjsrc->name(),
                 arancini_runtime_lib_dir, architecture,
                 arancini_runtime_lib_dir, debug_info, verbose_link));
-        } else if (elf.type() == elf::elf_type::dyn) {
+        } else if (elf.type() == arancini::elf::elf_type::dyn) {
             // Generate the final output library by compiling everything
             // together.
             std::string tls_defines =
@@ -462,7 +462,7 @@ void txlat_engine::translate_elf(
         std::string arancini_runtime_lib_dir =
             cmdline.at("static-binary").as<std::string>();
 
-        if (elf.type() != elf::elf_type::exec) {
+        if (elf.type() != arancini::elf::elf_type::exec) {
             throw std::runtime_error(
                 "Can't generate a static binary from a shared object.");
         }
@@ -481,26 +481,26 @@ void txlat_engine::translate_elf(
 
     // Patch relocations in result binary
     const auto &output = cmdline.at("output").as<std::string>();
-    elf::elf_reader elf1 = {output};
+    arancini::elf::elf_reader elf1 = {output};
 
     elf1.parse();
 
-    std::shared_ptr<elf::symbol_table> generated_dynsym;
-    std::vector<std::shared_ptr<elf::rela_table>> generated_rela;
+    std::shared_ptr<arancini::elf::symbol_table> generated_dynsym;
+    std::vector<std::shared_ptr<arancini::elf::rela_table>> generated_rela;
 
     for (auto &s : elf1.sections()) {
-        if (s->type() == elf::section_type::dynamic_symbol_table) {
-            auto st = std::static_pointer_cast<elf::symbol_table>(s);
+        if (s->type() == arancini::elf::section_type::dynamic_symbol_table) {
+            auto st = std::static_pointer_cast<arancini::elf::symbol_table>(s);
             generated_dynsym = std::move(st);
-        } else if (s->type() == elf::section_type::relocation_addend) {
-            auto st = std::static_pointer_cast<elf::rela_table>(s);
+        } else if (s->type() == arancini::elf::section_type::relocation_addend) {
+            auto st = std::static_pointer_cast<arancini::elf::rela_table>(s);
             generated_rela.push_back(std::move(st));
         }
     }
 
     std::map<std::string, int> guest_symbol_to_index;
 
-    const std::vector<elf::symbol> &guest_symbols = generated_dynsym->symbols();
+    const std::vector<arancini::elf::symbol> &guest_symbols = generated_dynsym->symbols();
     for (size_t i = 0; i < guest_symbols.size(); ++i) {
         const std::string &string = guest_symbols[i].name();
         if (string.size() >= 9) {
@@ -513,7 +513,7 @@ void txlat_engine::translate_elf(
                            std::ios::out | std::ios::binary | std::ios::in);
 
         for (const auto &relocs : generated_rela) {
-            const std::vector<elf::rela> &relocations1 = relocs->relocations();
+            const std::vector<arancini::elf::rela> &relocations1 = relocs->relocations();
             for (size_t i = 0; i < relocations1.size(); ++i) {
                 const auto &reloc = relocations1[i];
                 unsigned int transform = reloc.type() & 0xf0000000;
@@ -563,14 +563,14 @@ void txlat_engine::translate_elf(
 }
 
 void txlat_engine::add_symbol_to_output(
-    const std::vector<std::shared_ptr<elf::program_header>> &phbins,
-    const std::map<off_t, unsigned int> &end_addresses, const elf::symbol &sym,
+    const std::vector<std::shared_ptr<arancini::elf::program_header>> &phbins,
+    const std::map<off_t, unsigned int> &end_addresses, const arancini::elf::symbol &sym,
     std::ofstream &s, std::map<uint64_t, std::string> &ifuncs,
     bool force_global, bool omit_prefix) {
     auto type = sym.type();
 
     unsigned int i = end_addresses.upper_bound(sym.value())->second;
-    const std::shared_ptr<elf::program_header> &phdr = phbins[i / 2];
+    const std::shared_ptr<arancini::elf::program_header> &phdr = phbins[i / 2];
 
     auto name = omit_prefix ? sym.name() : "__guest__" + sym.name();
     if (strcmp(type, "STT_GNU_IFUNC") == 0) {
@@ -669,7 +669,7 @@ txlat_engine::generate_wrapper(arancini::input::input_arch &ia,
 */
 std::shared_ptr<chunk>
 txlat_engine::translate_symbol(arancini::input::input_arch &ia,
-                               elf::elf_reader &reader, const elf::symbol &sym) {
+                               arancini::elf::elf_reader &reader, const arancini::elf::symbol &sym) {
     ::util::global_logger.info(
         "Translating symbol {}; value={:x} size={} section={}\n", sym.name(),
         sym.value(), sym.size(), sym.section_index());
@@ -738,14 +738,14 @@ void txlat_engine::optimise(
 }
 
 std::map<uint64_t, std::string> txlat_engine::generate_guest_sections(
-    const std::shared_ptr<util::basefile> &phobjsrc, elf::elf_reader &elf,
-    const std::vector<std::shared_ptr<elf::program_header>> &load_phdrs,
+    const std::shared_ptr<util::basefile> &phobjsrc, arancini::elf::elf_reader &elf,
+    const std::vector<std::shared_ptr<arancini::elf::program_header>> &load_phdrs,
     const std::basic_string<char> &filename,
-    const std::shared_ptr<elf::symbol_table> &dyn_sym,
-    const std::vector<std::shared_ptr<elf::rela_table>> &relocations,
-    const std::vector<std::shared_ptr<elf::relr_array>> &relocations_r,
-    const std::shared_ptr<elf::symbol_table> &sym_t,
-    const std::vector<std::shared_ptr<elf::program_header>> &tls) {
+    const std::shared_ptr<arancini::elf::symbol_table> &dyn_sym,
+    const std::vector<std::shared_ptr<arancini::elf::rela_table>> &relocations,
+    const std::vector<std::shared_ptr<arancini::elf::relr_array>> &relocations_r,
+    const std::shared_ptr<arancini::elf::symbol_table> &sym_t,
+    const std::vector<std::shared_ptr<arancini::elf::program_header>> &tls) {
     std::map<uint64_t, std::string> ifuncs;
     std::map<off_t, unsigned int> end_addresses;
     auto s = phobjsrc->open();
@@ -755,7 +755,7 @@ std::map<uint64_t, std::string> txlat_engine::generate_guest_sections(
     auto l = std::ofstream("guest-sections.lds");
 
     if (tls.size() == 1) {
-        if (elf.type() == elf::elf_type::exec) {
+        if (elf.type() == arancini::elf::elf_type::exec) {
             size_t offset = tls[0]->mem_size() +
                             (tls[0]->align() -
                              1); // Assume maximum misalignment penalty.
@@ -815,7 +815,7 @@ std::map<uint64_t, std::string> txlat_engine::generate_guest_sections(
 
         s << ".ifndef guest_base\nguest_base:\n.globl guest_base\n.hidden "
              "guest_base\n";
-        if (elf.type() == elf::elf_type::exec) {
+        if (elf.type() == arancini::elf::elf_type::exec) {
             s << "guest_exec_base:\n.globl guest_exec_base\n";
         }
         s << ".endif\n";
@@ -850,8 +850,8 @@ std::map<uint64_t, std::string> txlat_engine::generate_guest_sections(
             add_symbol_to_output(load_phdrs, end_addresses, sym, s, ifuncs,
                                  true);
             s << ".hidden __guest___DYNAMIC\n";
-            if (elf.type() == elf::elf_type::exec) {
-                elf::symbol sy{"guest_exec_DYNAMIC", sym.value(), sym.size(),
+            if (elf.type() == arancini::elf::elf_type::exec) {
+                arancini::elf::symbol sy{"guest_exec_DYNAMIC", sym.value(), sym.size(),
                           sym.section_index(),  sym.info(),  0};
                 add_symbol_to_output(load_phdrs, end_addresses, sy, s, ifuncs,
                                      true, true);
@@ -872,7 +872,7 @@ std::map<uint64_t, std::string> txlat_engine::generate_guest_sections(
     for (const auto &relocs : relocations_r) {
         for (const auto &reloc : relocs->relocations()) {
             unsigned int i = end_addresses.upper_bound(reloc)->second;
-            const std::shared_ptr<elf::program_header> &phdr = load_phdrs[i / 2];
+            const std::shared_ptr<arancini::elf::program_header> &phdr = load_phdrs[i / 2];
 
             // Reading this here because now the file_offset can be calculated
             // from the encompassing phdr
@@ -904,7 +904,7 @@ std::map<uint64_t, std::string> txlat_engine::generate_guest_sections(
                 // so we can only perform those manually in library init. Add an
                 // array of offset, addend pairs to iterate over.
 
-                if (elf.type() == elf::elf_type::exec) {
+                if (elf.type() == arancini::elf::elf_type::exec) {
                     throw std::runtime_error(
                         "TP relative reloc in binary not supported.");
                 }
@@ -918,7 +918,7 @@ std::map<uint64_t, std::string> txlat_engine::generate_guest_sections(
                   << ".section .grela\n";
             } else if (reloc.is_dtpmod()) {
 
-                if (elf.type() == elf::elf_type::exec) {
+                if (elf.type() == arancini::elf::elf_type::exec) {
                     throw std::runtime_error(
                         "DTPMOD reloc in binary not supported.");
                 }
@@ -961,7 +961,7 @@ std::map<uint64_t, std::string> txlat_engine::generate_guest_sections(
          "__DTPMOD_INIT, . - __DTPMOD_INIT \n.hidden __DTPMOD_INIT\n"
       << ".ifndef guest_tls\n.set guest_tls, 0\n.endif\n.globl "
          "guest_tls\n.hidden guest_tls\n";
-    if (elf.type() == elf::elf_type::exec) {
+    if (elf.type() == arancini::elf::elf_type::exec) {
         s << ".ifndef tls_offset\ntls_offset:\n.quad 0\n.globl "
              "tls_offset\n.endif\n";
     }

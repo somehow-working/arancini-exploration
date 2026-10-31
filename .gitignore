@@ -12,6 +12,7 @@ xed-prefix/*
 
 
 # Other
+**/*.exe
 **/*.o
 **/*.so
 **/*.a

@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include <arancini/elf/reader.h>
 #include <elf.h>
 
 namespace arancini::elf {
@@ -323,11 +324,11 @@ enum class elf_type { none, rel, exec, dyn, core };
 class elf_reader : public bin_reader {
   public:
     elf_reader(const std::string &filename) : bin_reader(filename) {}
-    //will call bin_readers dtor automatically
+
+    void parse();
 
     elf_type type() const { return type_; }
 
-    void parse();
 
     const std::vector<std::shared_ptr<section>> &sections() const {
         return sections_;
@@ -384,6 +385,5 @@ class elf_reader : public bin_reader {
 
     void parse_plt();
     void parse_got();
-
 };
 } // namespace arancini::elf

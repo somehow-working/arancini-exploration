@@ -40,7 +40,7 @@ enum class data_dirs : uint32_t {
     reserved,
 };
 
-#pragma pack(1)
+#pragma pack(push,1)
 struct aux_sym_func_defs {
     uint32_t tag_index;
     uint32_t total_size;
@@ -49,7 +49,6 @@ struct aux_sym_func_defs {
     char padding[2];
 };
 
-#pragma pack(1)
 struct aux_sym_bf_ef {
     char padding1[4];
     uint16_t linenumber;
@@ -58,19 +57,16 @@ struct aux_sym_bf_ef {
     char padding3[2];
 };
 
-#pragma pack(1)
 struct aux_sym_weak_ext {
     uint32_t tag_idx;
     uint32_t characteristics;
     char padding[10];
 };
 
-#pragma pack(1)
 struct aux_sym_file {
     char name[18];
 };
 
-#pragma pack(1)
 struct aux_sym_section_def {
     uint32_t length;
     uint16_t nr_relocs;
@@ -81,13 +77,14 @@ struct aux_sym_section_def {
     char padding[3];
 };
 
-#pragma pack(1)
 struct aux_sym_clr_token_def {
     uint8_t bAuxType;
     uint8_t bReserved;
     uint32_t sym_table_idx;
     char padding[12];
 };
+
+#pragma pack(pop)
 
 using aux_sym = std::variant<struct aux_sym_func_defs, struct aux_sym_bf_ef, struct aux_sym_weak_ext, struct aux_sym_file, struct aux_sym_section_def, struct aux_sym_clr_token_def>;
 
