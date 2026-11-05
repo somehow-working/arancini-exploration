@@ -26,6 +26,12 @@
 #include <sys/auxv.h>
 #include <sys/ucontext.h>
 
+#ifdef _WIN_EXPORT
+#define WIN_DECLSPEC __declspec(dllexport)
+#else
+#define WIN_DECLSPEC
+#endif
+
 using namespace arancini::runtime::exec;
 using namespace arancini::runtime::exec::x86;
 
@@ -50,7 +56,7 @@ static arancini::output::dynamic::riscv64::riscv64_dynamic_output_engine oe;
 #error "Unsupported dynamic output architecture"
 #endif
 
-extern "C" int execute_internal_call(void *cpu_state, int call);
+extern "C" WIN_DECLSPEC int execute_internal_call(void *cpu_state, int call);
 
 // HACK: for Debugging
 static x86_cpu_state *__current_state;
@@ -204,7 +210,7 @@ static std::unordered_map<unsigned long, void *> fn_addrs;
  * Initialises the dynamic runtime for the guest program that is about to be
  * executed.
  */
-extern "C" void *initialise_dynamic_runtime(unsigned long entry_point, int argc,
+extern "C" WIN_DECLSPEC void *initialise_dynamic_runtime(unsigned long entry_point, int argc,
                                             char **argv) {
     const char *flag = getenv("ARANCINI_ENABLE_LOG");
     if (flag) {
@@ -448,7 +454,7 @@ extern "C" void *initialise_dynamic_runtime(unsigned long entry_point, int argc,
 /**
  * Register a static function so it can be called from the main loop
  */
-extern "C" void register_static_fn_addr(unsigned long guest_addr,
+extern "C" WIN_DECLSPEC void register_static_fn_addr(unsigned long guest_addr,
                                         void *fn_addr) {
     fn_addrs.emplace(guest_addr, fn_addr);
 }
@@ -456,7 +462,7 @@ extern "C" void register_static_fn_addr(unsigned long guest_addr,
 /**
  * Look up a static function. Returns nullptr if the function was not found.
  */
-extern "C" void *lookup_static_fn_addr(unsigned long guest_addr) {
+extern "C" WIN_DECLSPEC void *lookup_static_fn_addr(unsigned long guest_addr) {
     if (auto item = fn_addrs.find(guest_addr); item != fn_addrs.end()) {
         return item->second;
     }
@@ -468,27 +474,27 @@ extern "C" void *lookup_static_fn_addr(unsigned long guest_addr) {
  * Entry point from /static/ code when the CPU jumps to an address that hasn't
  * been translated.
  */
-extern "C" int invoke_code(void *cpu_state) { return ctx_->invoke(cpu_state); }
+extern "C" WIN_DECLSPEC int invoke_code(void *cpu_state) { return ctx_->invoke(cpu_state); }
 
 /*
  * Entry point from /static/ code when internal call needs to be executed.
  */
-extern "C" int execute_internal_call(void *cpu_state, int call) {
+extern "C" WIN_DECLSPEC int execute_internal_call(void *cpu_state, int call) {
     return ctx_->internal_call(cpu_state, call);
 }
 
-extern "C" void poison(char *s) {
+extern "C" WIN_DECLSPEC void poison(char *s) {
     std::cerr << "Unimplemened Instr: " << s << "\n";
     abort();
 }
 
-extern "C" void finalize() {
+extern "C" WIN_DECLSPEC void finalize() {
     delete ctx_;
     exit(0);
 }
 
-extern "C" void clk(void *cpu_state, char *s) {
+extern "C" WIN_DECLSPEC void clk(void *cpu_state, char *s) {
     ctx_->get_thread(cpu_state)->clk(s);
 }
 
-extern "C" void alert() { std::cout << "Top of MainLoop!\n"; }
+extern "C" WIN_DECLSPEC void alert() { std::cout << "Top of MainLoop!\n"; }

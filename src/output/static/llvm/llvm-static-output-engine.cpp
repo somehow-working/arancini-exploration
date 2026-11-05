@@ -2762,7 +2762,7 @@ void llvm_static_output_engine_impl::compile() {
 #error Please check if the triple above is correct
 #endif
     }   else {
-        TT = "aarch64-pc-windows-mingw32";
+        TT = "aarch64-pc-windows-msvc";
     }
     module_->setTargetTriple(TT);
 

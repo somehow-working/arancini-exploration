@@ -1,10 +1,14 @@
 # Taken from https://github.com/LLVMParty/packages/blob/main/XEDConfig.cmake.in
 
+message(STATUS "Got to this point, its being called!")
+
 if(XED_FOUND)
     return()
 endif()
 
 get_filename_component(PACKAGE_PREFIX_DIR "${CMAKE_CURRENT_LIST_DIR}/../../../" ABSOLUTE)
+
+message(STATUS "Got: ${PACKAGE_PREFIX_DIR}")
 
 find_library(XED_LIBRARY xed PATHS "${PACKAGE_PREFIX_DIR}/lib" NO_CACHE REQUIRED NO_DEFAULT_PATH)
 add_library(XED::XED STATIC IMPORTED)

@@ -76,9 +76,9 @@ ExternalProject_Add(
   CONFIGURE_COMMAND "${CMAKE_COMMAND}" -E true
   BUILD_COMMAND "${Python3_EXECUTABLE}" "<SOURCE_DIR>/mfile.py" ${MFILE_ARGS}
   INSTALL_COMMAND "${CMAKE_COMMAND}" -E copy_directory <BINARY_DIR>/install
-                  "${CMAKE_INSTALL_PREFIX}"
+                  "${CMAKE_BINARY_DIR}/install"
   PREFIX xed-prefix
   DEPENDS mbuild)
 
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/XEDConfig.cmake.in"
-               "${CMAKE_INSTALL_PREFIX}/lib/cmake/XED/XEDConfig.cmake" @ONLY)
+               "${CMAKE_BINARY_DIR}/install/lib/cmake/XED/xedConfig.cmake" @ONLY)

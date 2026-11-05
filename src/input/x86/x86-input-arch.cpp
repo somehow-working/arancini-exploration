@@ -450,7 +450,7 @@ void x86_input_arch::translate_chunk(ir_builder &builder, off_t base_address,
 
     const uint8_t *mc = (const uint8_t *)code;
 
-    static uint nr_chunk = 1;
+    static uint32_t nr_chunk = 1;
 
     util::global_logger.info("chunk [{}] @ {:#x} code={} size={}\n", nr_chunk,
                              base_address, fmt::ptr(code), code_size);
