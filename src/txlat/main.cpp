@@ -75,6 +75,8 @@ static std::optional<po::variables_map> init_options(int argc,
          "Default specified by build system.")                             //
         ("cxx-compiler-path", po::value<std::string>()->default_value("clang"),
          "Path to C++ compiler to use for translated binary")              //
+         ("cxx-cross-compiler-path", po::value<std::string>()->default_value(CLANG_MINGW_C_PATH),
+         "Path to C++ compiler for windows to use for translated binary")
 #else
         ("runtime-lib-path", po::value<std::string>()->required(),
          "Path to arancini libraries. This txlat is configured to cross "

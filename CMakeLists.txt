@@ -79,6 +79,7 @@ if(NOT DEFINED ENV{FLAKE_BUILD})
   include(cmake/xed.cmake)
   include(cmake/fadec.cmake)
   include(cmake/fmt.cmake)
+  include(cmake/clang-mingw.cmake)
 endif() # NIX
 
 find_package(BISON)
@@ -148,6 +149,8 @@ else(NOT DEFINED CROSS_TRANSLATE)
   )
   add_compile_definitions(ARANCINI_LIBDIR="${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 endif()
+
+add_compile_definitions(CLANG_MINGW_C_PATH="${CLANG_MINGW_C_PATH}")
 
 add_subdirectory(src/txlat)
 

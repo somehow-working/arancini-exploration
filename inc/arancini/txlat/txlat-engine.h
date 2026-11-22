@@ -13,6 +13,11 @@ class rela_table;
 class relr_array;
 } // namespace arancini::elf
 
+namespace arancini::pe {
+class pe_reader;
+class section_header;
+}
+
 namespace arancini::ir {
 class chunk;
 }
@@ -69,5 +74,11 @@ class txlat_engine {
         const std::vector<std::shared_ptr<elf::relr_array>> &relocations_r,
         const std::shared_ptr<elf::symbol_table> &sym_t,
         const std::vector<std::shared_ptr<elf::program_header>> &tls);
+
+    static void generate_guest_sections_pe(
+      const std::shared_ptr<util::basefile> &asm_file,
+      const std::vector<pe::section_header>& required_sections,
+      const std::basic_string<char> &filename
+    );
 };
 } // namespace arancini::txlat

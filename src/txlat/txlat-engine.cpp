@@ -76,6 +76,23 @@ static void run_or_fail(const std::string &cmd) {
     }
 }
 
+void txlat_engine::generate_guest_sections_pe(
+    const std::shared_ptr<util::basefile> &asm_file,
+    const std::vector<arancini::pe::section_header>& required_sections,
+    const std::basic_string<char> &filename
+) {
+    auto s = asm_file->open();
+
+    s << ".ifndef guest_base\nguest_base:\n.globl guest_base\n.hidden guest_base\n.endif\n";
+
+    for(const auto &sec_head : required_sections) {
+        s << ".section ac-" << sec_head.get_name() << ", \"dr\"\n";
+        s << ".incbin \"" << filename + "\", " << sec_head.get_raw_ptr() << ", " << sec_head.get_raw_size() << "\n";
+    }
+    
+    return;
+}
+
 void txlat_engine::translate_pe(
     const boost::program_options::variables_map &cmdline) {
 
@@ -127,7 +144,31 @@ void txlat_engine::translate_pe(
 
     oe->generate();
 
-    //std::cout << "end of set1 we have: " << oe->is_compile_for_linux() << std::endl;
+    std::cout << "Generated windows object file!\n";
+
+    auto old_bin_data_file = tf.create_file(prefix, ".S");
+
+    std::vector<arancini::pe::section_header> loaded_secs;
+    for(const auto& sec_header : pe_file.get_section_headers()) {
+        if(sec_header.get_characteristics() & 0x02000000){
+            //if the characteristic of the section is IMAGE_SCN_MEM_DISCARDABLE we do not need to load it (mostly debug stuff)
+            continue;
+        }
+        loaded_secs.push_back(sec_header);
+    }
+
+    generate_guest_sections_pe(old_bin_data_file, loaded_secs, filename);
+
+    std::string cxx_cross_compiler = cmdline.at("cxx-cross-compiler-path").as<std::string>();
+    std::string arancini_runtime_lib_path =
+        cmdline.at("runtime-lib-path").as<std::string>();
+    auto dir_start = arancini_runtime_lib_path.rfind("/");
+    std::string arancini_runtime_lib_dir =
+        arancini_runtime_lib_path.substr(0, dir_start);
+
+    run_or_fail(cxx_cross_compiler + " -o default-output -v " + 
+        intermediate_file->name() + " " + old_bin_data_file->name() +
+        " -l arancini-runtime-win -L " + arancini_runtime_lib_dir);
 }
 
 void txlat_engine::translate(

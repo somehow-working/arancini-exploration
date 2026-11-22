@@ -1,6 +1,8 @@
 #pragma once
 
+#ifndef _WIN_EXPORT
 #include <arancini/util/logger.h>
+#endif
 
 #include <cstdint>
 #include <iostream>
@@ -27,6 +29,9 @@ std::ostream &operator<<(std::ostream &os, const x86_cpu_state &s);
 #define X86_OFFSET_OF(reg)                                                     \
     __builtin_offsetof(struct arancini::runtime::exec::x86::x86_cpu_state, reg)
 } // namespace arancini::runtime::exec::x86
+
+#ifndef _WIN_EXPORT
+
 template <> struct fmt::formatter<arancini::runtime::exec::x86::x86_cpu_state> {
     template <typename PCTX>
     constexpr format_parse_context::iterator parse(const PCTX &parse_ctx) {
@@ -92,3 +97,5 @@ template <> struct fmt::formatter<arancini::runtime::exec::x86::x86_cpu_state> {
             (regs.X87_OPCODE >> 8) & 0xFF, regs.X87_OPCODE & 0xFF);
     }
 };
+
+#endif
