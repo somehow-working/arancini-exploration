@@ -11,6 +11,7 @@ execution_thread::execution_thread(execution_context &owner, size_t state_size)
     if (!cpu_state_) {
         throw std::runtime_error("unable to allocate storage for CPU state");
     }
+    
 }
 
 execution_thread::~execution_thread() { std::free(cpu_state_); }

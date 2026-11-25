@@ -83,13 +83,15 @@ void txlat_engine::generate_guest_sections_pe(
 ) {
     auto s = asm_file->open();
 
-    s << ".ifndef guest_base\nguest_base:\n.globl guest_base\n.hidden guest_base\n.endif\n";
+    s << ".ifndef guest_base\nguest_base:\n.globl guest_base\n.endif\n";
 
+    int cnt = 0;
     for(const auto &sec_head : required_sections) {
-        s << ".section ac-" << sec_head.get_name() << ", \"dr\"\n";
+        s << ".section a" << cnt << "_" << sec_head.get_name().substr(1, sec_head.get_name().size()-2).c_str() << ", \"dr\"\n";
         s << ".incbin \"" << filename + "\", " << sec_head.get_raw_ptr() << ", " << sec_head.get_raw_size() << "\n";
+        cnt++;
     }
-    
+
     return;
 }
 

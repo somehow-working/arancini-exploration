@@ -86,6 +86,10 @@ execution_context::~execution_context() {
     pthread_mutex_destroy(&big_fat_lock);
 }
 
+arancini::runtime::dbt::translation_engine& execution_context::get_te_ref() {
+    return te_;
+}
+
 void *execution_context::add_memory_region(off_t base_address, size_t size,
                                            bool ignore_brk) {
     if ((base_address + size) > memory_size_) {

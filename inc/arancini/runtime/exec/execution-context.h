@@ -40,6 +40,8 @@ class execution_context {
     int invoke(void *cpu_state);
     int internal_call(void *cpu_state, int call);
 
+    dbt::translation_engine& get_te_ref();
+
   private:
     void *memory_;
     size_t memory_size_;
